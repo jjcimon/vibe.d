@@ -12,6 +12,7 @@ import vibe.core.log;
 import std.base64;
 import std.array;
 import core.time;
+import std.digest.md;
 import std.datetime : Clock, SysTime, Duration;
 import vibe.crypto.cryptorand;
 
@@ -27,7 +28,6 @@ static this()
 //The "URL and Filename safe" Base64 without padding
 alias Base64Impl!('-', '_', Base64.NoPadding) Base64URLNoPadding;
 
-
 /**
 	Represents a single HTTP session.
 
@@ -41,13 +41,14 @@ final class Session {
 
 	private this(SessionStore store, string id = null)
 	{
+
 		m_store = store;
 		if (id) {
 			m_id = id;
 		} else {
 			ubyte[64] rand;
 			g_rng.read(rand);
-			m_id = cast(immutable)Base64URLNoPadding.encode(rand);
+			m_id = (cast(immutable)Base64URLNoPadding.encode(rand))[0..15];
 		}
 	}
 
@@ -143,7 +144,6 @@ interface SessionStore {
  */
 struct SessionStoreSettings
 {
-
 	Duration cleanupInterval = 5.seconds;
 
 	/* 
@@ -153,7 +153,7 @@ struct SessionStoreSettings
 	 */
 	Duration expiresAfter = 360.seconds;
 
-	uint maxSessions = 10_000;
+	uint maxSessions = 1_000_000;
 }
 
 /**
@@ -180,9 +180,9 @@ final class MemorySessionStore : SessionStore {
 	Session create()
 	{
 		auto s = createSessionInstance();
-		m_exists[id] = true;
+		m_exists[s.id] = true;
 		m_sessions[s.id] = null;
-		m_lastAccess[id] = Clock.currTime;
+		m_lastAccess[s.id] = Clock.currTime;
 		return s;
 	}
 	
@@ -196,7 +196,7 @@ final class MemorySessionStore : SessionStore {
 	{
 		m_sessions[id][name] = value;
 		m_lastAccess[id] = Clock.currTime;
-		foreach(k, v; m_sessions[id]) logTrace("Csession[%s][%s] = %s", id, k, v);
+		debug foreach(k, v; m_sessions[id]) logTrace("Csession[%s][%s] = %s", id, k, v);
 	}
 
 	private void cleanup(){
@@ -210,14 +210,14 @@ final class MemorySessionStore : SessionStore {
 
 	string get(string id, string name, string defaultVal=null)
 	{
-		assert(id in m_sessions, "session not in store");
+		assert(m_exists[id], "session not in store");
 
 		if (Clock.currTime - m_lastCleanup > m_settings.cleanupInterval)
 			cleanup();
 
 		m_lastAccess[id] = Clock.currTime;
 
-		foreach(k, v; m_sessions[id]) logTrace("Dsession[%s][%s] = %s", id, k, v);
+		debug foreach(k, v; m_sessions[id]) logTrace("Dsession[%s][%s] = %s", id, k, v);
 		if (auto pv = name in m_sessions[id]) {
 			return *pv;			
 		} else {
@@ -227,7 +227,7 @@ final class MemorySessionStore : SessionStore {
 	
 	bool isKeySet(string id, string key)
 	{
-		return (key in m_exists[id]) !is null;
+		return (key in m_sessions[id]) !is null;
 	}
 	
 	void destroy(string id)
@@ -239,7 +239,7 @@ final class MemorySessionStore : SessionStore {
 	
 	int delegate(int delegate(ref string key, ref string value)) iterateSession(string id)
 	{
-		assert(id in m_sessions, "session not in store");
+		assert(m_exists[id], "session not in store");
 		int iterator(int delegate(ref string key, ref string value) del)
 		{
 
