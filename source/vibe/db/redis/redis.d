@@ -10,6 +10,7 @@ import std.conv;
 import std.exception;
 import std.traits;
 import std.utf;
+import std.datetime;
 
 final class RedisReply {
 
@@ -89,24 +90,19 @@ final class RedisReply {
 
 final class RedisConnection {
 	private {
-		string m_host;
-		ushort m_port;
-		TCPConnection m_conn;
+		TCPConnection m_conn = void;
 	}
 
-	this() {}
-
-	void connect(string host = "127.0.0.1", ushort port = 6379) {
-		m_host = host;
-		m_port = port;
+	this(string host = "127.0.0.1", ushort port = 6379) {
+		try m_conn = connectTCP(host, port);
+		catch (Exception e) {
+			throw new Exception(format("Failed to connect to Redis server at %s:%s.", host, port), __FILE__, __LINE__, e);
+		}
 	}
 
 	RedisReply request(string command, in ubyte[][] args...) {
 		if( !m_conn || !m_conn.connected ){
-			try m_conn = connectTCP(m_host, m_port);
-			catch (Exception e) {
-				throw new Exception(format("Failed to connect to Redis server at %s:%s.", m_host, m_port), __FILE__, __LINE__, e);
-			}
+
 		}
 		m_conn.write(format("*%d\r\n$%d\r\n%s\r\n", args.length + 1, command.length, command));
 		foreach( arg; args ) {
@@ -126,9 +122,7 @@ final class RedisClient {
 	this(string host = "127.0.0.1", ushort port = 6379)
 	{
 		m_connections = new ConnectionPool!RedisConnection({
-			auto connection = new RedisConnection;
-			connection.connect(host, port);
-			return connection;
+			return new RedisConnection(host, port);
 		});
 	}
 

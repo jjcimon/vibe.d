@@ -11,6 +11,8 @@ import vibe.core.log;
 
 import std.base64;
 import std.array;
+import core.time;
+import std.datetime : Clock, SysTime, Duration;
 import vibe.crypto.cryptorand;
 
 //random number generator
@@ -53,7 +55,7 @@ final class Session {
 	@property string id() const { return m_id; }
 
 	/// Queries the session for the existence of a particular key.
-	bool isKeySet(string key) const { return m_store.isKeySet(m_id, key); }
+	bool isKeySet(string key) { return m_store.isKeySet(m_id, key); }
 
 	/**
 		Enables foreach-iteration over all key/value pairs of the session.
@@ -93,7 +95,7 @@ final class Session {
 		}
 		---
 	*/
-	string opIndex(string name) const { return m_store.get(m_id, name); }
+	string opIndex(string name) { return m_store.get(m_id, name); }
 	/// ditto
 	void opIndexAssign(string value, string name) { m_store.set(m_id, name, value); }
 
@@ -118,10 +120,10 @@ interface SessionStore {
 	void set(string id, string name, string value);
 
 	/// Returns the value for a given session key.
-	string get(string id, string name, string defaultVal = null) const;
+	string get(string id, string name, string defaultVal = null);
 
 	/// Determines if a certain session key is set.
-	bool isKeySet(string id, string key) const;
+	bool isKeySet(string id, string key);
 
 	/// Terminates the given sessiom.
 	void destroy(string id);
@@ -136,6 +138,23 @@ interface SessionStore {
 	}
 }
 
+/**
+ * Session store settings used in comparisons.
+ */
+struct SessionStoreSettings
+{
+
+	Duration cleanupInterval = 5.seconds;
+
+	/* 
+	 * If MemorySessionStore is called from RedisSessionStore, 
+	 * this is the KeepAliveTimeout to avoid using outdated data 
+	 * if another thread or server handles a session write.
+	 */
+	Duration expiresAfter = 360.seconds;
+
+	uint maxSessions = 10_000;
+}
 
 /**
 	Session store for storing a session in local memory.
@@ -147,30 +166,57 @@ interface SessionStore {
 final class MemorySessionStore : SessionStore {
 	private {
 		string[string][string] m_sessions;
+		bool[string] m_exists;
+		SysTime m_lastCleanup;
+		SysTime[string] m_lastAccess;
+		SessionStoreSettings m_settings;
+	}
+
+	this(SessionStoreSettings settings = SessionStoreSettings())
+	{
+		m_settings = settings;
 	}
 
 	Session create()
 	{
 		auto s = createSessionInstance();
+		m_exists[id] = true;
 		m_sessions[s.id] = null;
+		m_lastAccess[id] = Clock.currTime;
 		return s;
 	}
-
+	
 	Session open(string id)
 	{
 		auto pv = id in m_sessions;
 		return pv ? createSessionInstance(id) : null;	
 	}
-
+	
 	void set(string id, string name, string value)
 	{
 		m_sessions[id][name] = value;
+		m_lastAccess[id] = Clock.currTime;
 		foreach(k, v; m_sessions[id]) logTrace("Csession[%s][%s] = %s", id, k, v);
 	}
 
+	private void cleanup(){
+		foreach(id, ref val; m_sessions){
+			if (Clock.currTime - m_lastAccess[id] > m_settings.expiresAfter){
+				destroy(id);
+			}
+		}
+		m_lastCleanup = Clock.currTime;
+	}
+
 	string get(string id, string name, string defaultVal=null)
-	const {
+	{
 		assert(id in m_sessions, "session not in store");
+
+		if (Clock.currTime - m_lastCleanup > m_settings.cleanupInterval)
+			cleanup();
+
+		m_lastAccess[id] = Clock.currTime;
+
 		foreach(k, v; m_sessions[id]) logTrace("Dsession[%s][%s] = %s", id, k, v);
 		if (auto pv = name in m_sessions[id]) {
 			return *pv;			
@@ -178,22 +224,27 @@ final class MemorySessionStore : SessionStore {
 			return defaultVal;
 		}
 	}
-
+	
 	bool isKeySet(string id, string key)
-	const {
-		return (key in m_sessions[id]) !is null;
+	{
+		return (key in m_exists[id]) !is null;
 	}
-
+	
 	void destroy(string id)
 	{
 		m_sessions.remove(id);
+		m_lastAccess.remove(id);
+		m_exists.remove(id);
 	}
-
+	
 	int delegate(int delegate(ref string key, ref string value)) iterateSession(string id)
 	{
 		assert(id in m_sessions, "session not in store");
 		int iterator(int delegate(ref string key, ref string value) del)
 		{
+
+			m_lastAccess[id] = Clock.currTime;
+
 			foreach( key, ref value; m_sessions[id] )
 				if( auto ret = del(key, value) != 0 )
 					return ret;
@@ -202,3 +253,4 @@ final class MemorySessionStore : SessionStore {
 		return &iterator;
 	}
 }
+
