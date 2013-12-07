@@ -38,7 +38,7 @@ final class RedisSessionStore : SessionStore {
 	{
 		//// If keepalive was enabled this should be quick. 
 		//// Check memoryStore first then Redis DB
-		return (m_redisClient.exists(id) ? createSessionInstance(id) : null);	
+		return (m_memoryStore.exists(id) || m_redisClient.exists(id) ? createSessionInstance(id) : null);	
 	}
 	
 	void set(string id, string name, string value)
