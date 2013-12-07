@@ -13,7 +13,7 @@ import std.base64;
 import std.array;
 import core.time;
 import std.digest.md;
-import std.datetime : Clock, SysTime, Duration;
+import std.datetime;
 import vibe.crypto.cryptorand;
 
 //random number generator
@@ -114,6 +114,9 @@ interface SessionStore {
 	/// Creates a new session.
 	Session create();
 
+	/// Checks if a session exists.
+	bool exists(string id);
+
 	/// Opens an existing session.
 	Session open(string id);
 
@@ -144,6 +147,13 @@ interface SessionStore {
  */
 struct SessionStoreSettings
 {
+	/*
+	 * For RedisSessionStore, this is transferred to
+	 * the expiresAfter setting of MemorySessionStore
+	 * and should be set to the server's KeepAlive Timeout
+	 */
+	Duration keepAliveTimeout = 10.seconds;
+
 	Duration cleanupInterval = 5.seconds;
 
 	/* 
@@ -175,6 +185,11 @@ final class MemorySessionStore : SessionStore {
 	this(SessionStoreSettings settings = SessionStoreSettings())
 	{
 		m_settings = settings;
+	}
+
+	bool exists(string id)
+	{
+		return (id in m_exists) !is null;
 	}
 
 	Session create()
@@ -210,7 +225,7 @@ final class MemorySessionStore : SessionStore {
 
 	string get(string id, string name, string defaultVal=null)
 	{
-		assert(m_exists[id], "session not in store");
+		assert(exists(id), "session not in store");
 
 		if (Clock.currTime - m_lastCleanup > m_settings.cleanupInterval)
 			cleanup();
@@ -239,7 +254,7 @@ final class MemorySessionStore : SessionStore {
 	
 	int delegate(int delegate(ref string key, ref string value)) iterateSession(string id)
 	{
-		assert(m_exists[id], "session not in store");
+		assert(exists(id), "session not in store");
 		int iterator(int delegate(ref string key, ref string value) del)
 		{
 
