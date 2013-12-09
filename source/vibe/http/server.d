@@ -1086,30 +1086,44 @@ final class HTTPServerResponse : HTTPResponse {
 		something = "somewhere";
 		auto somewhere = something();
  */
-public class SessionLocal(T, string KEY)
-{
-	private {
-		HTTPServerRequest m_req;
-		HTTPServerResponse m_res;
-	}
-	this(){};
-
-	void load(HTTPServerRequest req, HTTPServerResponse res)
+version(With_REST_hack) {
+	public class SessionLocal(T, string KEY)
 	{
-		m_req = req;
-		m_res = res;
+		
+		void opAssign(T value){ 
+			_session[KEY] = value;
+		}
+		
+		T opCall() {
+			return _session[KEY];
+		}
+		
 	}
-	
-	void opAssign(T value){ 
-		m_req.session[KEY] = value;
-	}
-	
-	T opCall() {
-		return m_req.session[KEY];
-	}
-	
-}
+} else {
+	public class SessionLocal(T, string KEY)
+	{
+		private {
+			HTTPServerRequest m_req;
+			HTTPServerResponse m_res;
+		}
+		this(){};
 
+		void load(HTTPServerRequest req, HTTPServerResponse res)
+		{
+			m_req = req;
+			m_res = res;
+		}
+		
+		void opAssign(T value){ 
+			m_req.session[KEY] = value;
+		}
+		
+		T opCall() {
+			return m_req.session[KEY];
+		}
+		
+	}
+}
 /// Deprecated compatibility alias
 deprecated("Please use HTTPServerResponse instead.") alias HttpServerResponse = HTTPServerResponse;
 
