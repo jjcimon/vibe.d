@@ -1076,6 +1076,40 @@ final class HTTPServerResponse : HTTPResponse {
 	}
 }
 
+
+/*
+ * Allows a variable in any scope of a task to provide type-safe access to its specific key in the session.
+ * e.g.
+  		SessionLocal!(string,"something") something = new SessionLocal!(string, "something");
+		
+		something.load(req,res);
+		something = "somewhere";
+		auto somewhere = something();
+ */
+public class SessionLocal(T, string KEY)
+{
+	private {
+		HTTPServerRequest m_req;
+		HTTPServerResponse m_res;
+	}
+	this(){};
+
+	void load(HTTPServerRequest req, HTTPServerResponse res)
+	{
+		m_req = req;
+		m_res = res;
+	}
+	
+	void opAssign(T value){ 
+		m_req.session[KEY] = value;
+	}
+	
+	T opCall() {
+		return m_req.session[KEY];
+	}
+	
+}
+
 /// Deprecated compatibility alias
 deprecated("Please use HTTPServerResponse instead.") alias HttpServerResponse = HTTPServerResponse;
 
