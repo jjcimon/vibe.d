@@ -1151,6 +1151,13 @@ private {
 	shared ushort s_distPort = 11000;
 	__gshared HTTPServerContext[] g_contexts;
 	__gshared HTTPServerListener[] g_listeners;
+
+}
+
+version (With_REST_hack){
+	private TaskLocal!(FreeListRef!HTTPServerRequest) req;
+	private TaskLocal!(FreeListRef!HTTPServerResponse) res;
+	@property Session _session(){ return req.session; }
 }
 
 private void handleHTTPConnection(TCPConnection connection, HTTPServerListener listen_info)
@@ -1199,7 +1206,8 @@ private bool handleRequest(Stream http_stream, TCPConnection tcp_connection, HTT
 	scope(exit) request_allocator.reset();
 
 	// some instances that live only while the request is running
-	FreeListRef!HTTPServerRequest req = FreeListRef!HTTPServerRequest(reqtime, listen_info.bindPort);
+	version(With_REST_hack) req = FreeListRef!HTTPServerRequest(reqtime, listen_info.bindPort);
+	else FreeListRef!HTTPServerRequest req = FreeListRef!HTTPServerRequest(reqtime, listen_info.bindPort);
 	FreeListRef!TimeoutHTTPInputStream timeout_http_input_stream;
 	FreeListRef!LimitedHTTPInputStream limited_http_input_stream;
 	FreeListRef!ChunkedInputStream chunked_input_stream;
@@ -1221,7 +1229,8 @@ private bool handleRequest(Stream http_stream, TCPConnection tcp_connection, HTT
 		}
 
 	// Create the response object
-	auto res = FreeListRef!HTTPServerResponse(http_stream, tcp_connection, settings, request_allocator/*.Scoped_payload*/);
+	version(With_REST_hack) res = FreeListRef!HTTPServerResponse(http_stream, tcp_connection, settings, request_allocator/*.Scoped_payload*/);
+	else auto res = FreeListRef!HTTPServerResponse(http_stream, tcp_connection, settings, request_allocator/*.Scoped_payload*/);
 	req.ssl = res.m_ssl = listen_info.sslContext !is null;
 
 	// Error page handler
