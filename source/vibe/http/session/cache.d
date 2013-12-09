@@ -5,7 +5,7 @@
 	License: Subject to the terms of the MIT license, as written in the included LICENSE.txt file.
 	Authors: Jan Krüger, Sönke Ludwig, Ilya Shipunov
 */
-module vibe.http.sessionstore.memory;
+module vibe.http.sessionstore.cache;
 
 import vibe.http.session;
 import vibe.core.log;
@@ -18,7 +18,7 @@ import std.datetime;
 	session store provies the fastest and simplest way to store sessions. In any other case,
 	a persistent session store based on a database is necessary.
 */
-final class MemorySessionStore : SessionStore {
+final class SessionCacheStore : SessionStore {
 	private {
 		string[string][string] m_sessions;
 		bool[string] m_exists;
@@ -112,7 +112,7 @@ final class MemorySessionStore : SessionStore {
 		}
 		return &iterator;
 	}
-
+	
 	@property SessionStoreSettings settings(){
 		return m_settings;
 	}

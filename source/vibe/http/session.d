@@ -48,7 +48,7 @@ final class Session {
 		} else {
 			ubyte[64] rand;
 			g_rng.read(rand);
-			m_id = (cast(immutable)Base64URLNoPadding.encode(rand))[0..15];
+			m_id = (cast(immutable)Base64URLNoPadding.encode(rand))[0..store.settings.szId-1];
 		}
 	}
 
@@ -132,6 +132,8 @@ interface SessionStore {
 	/// Terminates the given sessiom.
 	void destroy(string id);
 
+	@property SessionStoreSettings settings();
+
 	/// Iterates all key/value pairs stored in the given session. 
 	int delegate(int delegate(ref string key, ref string value)) iterateSession(string id);
 
@@ -162,6 +164,9 @@ struct SessionStoreSettings
 	 * if another thread or server handles a session write.
 	 */
 	Duration expiresAfter = 360.seconds;
+
+	/// Max bytes in Session ID string
+	ubyte szId = 64;
 
 	uint maxSessions = 1_000_000;
 }

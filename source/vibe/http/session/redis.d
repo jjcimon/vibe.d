@@ -8,7 +8,7 @@
 module vibe.http.sessionstore.redis;
 
 import vibe.http.session;
-import vibe.http.sessionstore.memory;
+import vibe.http.sessionstore.cache;
 import vibe.db.redis.redis;
 
 import std.datetime;
@@ -18,7 +18,7 @@ import std.datetime;
 */
 final class RedisSessionStore : SessionStore {
 	private {
-		MemorySessionStore m_memoryStore = void;
+		SessionCacheStore m_cacheStore = void;
 		RedisClient m_redisClient = void;
 		SessionStoreSettings m_settings = void;
 	}
@@ -28,8 +28,8 @@ final class RedisSessionStore : SessionStore {
 		m_redisClient = new RedisClient(host, port);
 		m_settings = settings;
 		if (m_settings.keepAliveTimeout > 0.seconds){
-			auto memory_settings = SessionStoreSettings(0.seconds, settings.cleanupInterval.init, settings.keepAliveTimeout, settings.maxSessions);
-			m_memoryStore = new MemorySessionStore(memory_settings);
+			auto memory_settings = SessionStoreSettings(0.seconds, settings.cleanupInterval.init, settings.keepAliveTimeout, 64, settings.maxSessions);
+			m_cacheStore = new SessionCacheStore(memory_settings);
 		}
 	}
 
@@ -47,31 +47,31 @@ final class RedisSessionStore : SessionStore {
 	{
 		//// If keepalive was enabled this should be quick. 
 		//// Check memoryStore first then Redis DB
-		return (m_memoryStore.exists(id) || m_redisClient.exists(id) ? createSessionInstance(id) : null);	
+		return (m_cacheStore.exists(id) || m_redisClient.exists(id) ? createSessionInstance(id) : null);	
 	}
 	
 	void set(string id, string name, string value)
 	{
-		m_memoryStore.set(id, name, value);
+		m_cacheStore.set(id, name, value);
 		m_redisClient.hset(id, name, value);
 	}
 	
 	string get(string id, string name, string defaultVal=null)
 	{
 		
-		assert(m_memoryStore.exists(id) || exists(id), "session not in store");
+		assert(m_cacheStore.exists(id) || exists(id), "session not in store");
 
 		//// Prolong the redis index lifetime, it's still useful
 		m_redisClient.expire(id, cast(uint)m_settings.expiresAfter.total!"seconds");
 
-		if (m_memoryStore.exists(id))
-			return m_memoryStore.get(id, name, defaultVal);
+		if (m_cacheStore.exists(id))
+			return m_cacheStore.get(id, name, defaultVal);
 
 		auto val = m_redisClient.hget!string(id, name);
 		
 		if ( val != "" ) {
 			//// Cache this value, it expired.
-			m_memoryStore.set(id, name, val);
+			m_cacheStore.set(id, name, val);
 		} else {
 			val = defaultVal;
 		}
@@ -81,19 +81,19 @@ final class RedisSessionStore : SessionStore {
 	
 	bool isKeySet(string id, string key)
 	{
-		return m_memoryStore.isKeySet(id, key) || (m_redisClient.hexists(id, key));
+		return m_cacheStore.isKeySet(id, key) || (m_redisClient.hexists(id, key));
 	}
 	
 	void destroy(string id)
 	{
-		if (m_memoryStore.exists(id))
-			m_memoryStore.destroy(id);
+		if (m_cacheStore.exists(id))
+			m_cacheStore.destroy(id);
 		m_redisClient.del(id);
 	}
 	
 	int delegate(int delegate(ref string key, ref string value)) iterateSession(string id)
 	{
-		assert(m_memoryStore.exists(id) || exists(id), "session not in store");
+		assert(m_cacheStore.exists(id) || exists(id), "session not in store");
 		int iterator(int delegate(ref string key, ref string value) del)
 		{
 			RedisReply reply = m_redisClient.hgetAll(id);
@@ -108,5 +108,9 @@ final class RedisSessionStore : SessionStore {
 			return 0;
 		}
 		return &iterator;
+	}
+
+	@property SessionStoreSettings settings(){
+		return m_settings;
 	}
 }
