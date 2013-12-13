@@ -67,7 +67,7 @@ final class Session {
 	@property string id() const { return m_id; }
 
 	/// Queries the session for the existence of a particular key.
-	bool isKeySet(string key) { return m_store.isKeySet!key(m_id); }
+	bool isKeySet(string key) { return m_manager.isKeySet!key(m_id); }
 
 	/**
 		Enables foreach-iteration over all key/value pairs of the session.
@@ -282,7 +282,7 @@ final class SessionManager {
 	
 	/// Returns the value for a given session key.
 	T get(T, string KEY)(string id, string defaultVal = null) {}
-	
+
 	/// Determines if a certain session key is set.
 	bool isKeySet(string KEY)(string id) {}
 	
@@ -304,5 +304,17 @@ final class SessionManager {
 	{
 		return new Session(this, id);
 	}
+
+	/// The following methods were included for runtime capabilities
+
+	/// Sets a name/value pair for a given session.
+	void set(string id, string name, string value) {}
+	
+	/// Returns the value for a given session key.
+	string get(string id, string name, string defaultVal = null) {}
+
+	/// Determines if a certain session key is set.
+	bool isKeySet()(string id, string key) {}
+
 }
 

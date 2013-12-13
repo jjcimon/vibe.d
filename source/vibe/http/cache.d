@@ -53,7 +53,9 @@ final class GlobalCacheManager {
 	
 	/// Returns the value
 	T get(T, string KEY)(string defaultVal = null);
-	
+
+
+
 	/// Determines if a certain global key is set.
 	bool isKeySet(string KEY)();
 	
@@ -66,6 +68,22 @@ final class GlobalCacheManager {
 	/// Iterates all key/value pairs
 	/// is this type-iteration even possible?
 	/// int delegate(int delegate(ref string key, ref T value)) iterateCache(T, string KEY)();
+	/// 
+	/// 
+
+	/// The following methods are made available for runtime capabilities
+
+	/// Sets a name/value pair. 
+	void set(string name, string value) {}
+	
+	/// Returns the value. 
+	string get(string name, string defaultVal = null) {}
+
+	/// Determines if a certain global key is set.
+	bool isKeySet(string name);
+	
+	/// Removes the given key.
+	void destroy(string name);
 
 }
 
