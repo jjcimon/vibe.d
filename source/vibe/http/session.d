@@ -15,6 +15,7 @@ import core.time;
 import std.digest.md;
 import std.datetime;
 import vibe.crypto.cryptorand;
+import std.variant;
 
 public import vibe.http.cachestore.memory;
 
@@ -72,25 +73,39 @@ final class Session {
 	/**
 		Enables foreach-iteration over all key/value pairs of the session.
 
-		Examples:
-		---
-		// sends all session entries to the requesting browser
-		void handleRequest(HTTPServerRequest req, HTTPServerResponse res)
-		{
-			res.contentType = "text/plain";
-			foreach(key, value; req.session)
-				res.bodyWriter.write(key ~ ": " ~ value ~ "\n");
-		}
-		---
+		string[string] iteration is provided for legacy, the Variant 
+		version of this is recommended.
 	*/
-	int opApply(int delegate(ref string key, ref string value) del)
+	deprecated int opApply(int delegate(ref string key, ref string value) del)
 	{
 		foreach( key, ref value; m_manager.iterateSession(m_id) )
 			if( auto ret = del(key, value) != 0 )
 				return ret;
 		return 0;
 	}
-	
+
+	/**
+	 	Type-safe iteration is made available through Variant
+
+		Examples:
+		---
+		// sends all session entries to the requesting browser
+		void handleRequest(HTTPServerRequest req, HTTPServerResponse res)
+		{
+			res.contentType = "text/plain";
+			foreach(key, Variant value; req.session)
+				res.bodyWriter.write(key ~ ": " ~ value.get!string ~ "\n");
+		}
+		---
+	*/
+	int opApply(int delegate(ref string key, ref Variant value) del)
+	{
+		foreach( key, ref value; m_manager.iterateSession(m_id) )
+			if( auto ret = del(key, value) != 0 )
+				return ret;
+		return 0;
+	}
+
 	/**
 		Gets/sets a key/value pair stored within the session.
 
@@ -295,9 +310,11 @@ final class SessionManager {
 	/// Retrieves the settings for the cache storage.
 	@property CacheDataStoreSettings dsSettings() {}
 
-	/// Iterates all key/value pairs stored in the given session. 
-	/// is this type-iteration even possible?
-	/// int delegate(int delegate(ref string key, ref T value)) iterateSession(T, string KEY)(string id);
+	/// Iterates all key/value pairs stored in the given session. Legacy string[string] version. 
+	deprecated int delegate(int delegate(ref string key, ref string value)) iterateSession(string id);
+
+	/// Iterates all key/value pairs stored in the given session.
+	int delegate(int delegate(ref string key, ref Variant value)) iterateSession(string id);
 	
 	/// Creates a new Session object which sources its contents from this store.
 	protected final Session createSessionInstance(string id = null)

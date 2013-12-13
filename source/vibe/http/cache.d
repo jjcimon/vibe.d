@@ -4,7 +4,6 @@ import std.datetime;
 
 class CacheDataStoreSettings 
 {
-	
 	/// Sometimes it's worth it to expire some cache items frequently based on accesses,
 	/// especially when it's unlikely it'll reach the maxLifeTime because it's always being used
 	uint maxAccesses = 0; // forces to keep each item until cold expiry
@@ -41,7 +40,8 @@ class CacheDataStoreSettings
 	Communicates with a specific data store for global caching
 
 */
-final class GlobalCacheManager {
+final class GlobalCacheManager 
+{
 
 	CacheDataStore m_dataStore;
 
@@ -54,8 +54,6 @@ final class GlobalCacheManager {
 	/// Returns the value
 	T get(T, string KEY)(string defaultVal = null);
 
-
-
 	/// Determines if a certain global key is set.
 	bool isKeySet(string KEY)();
 	
@@ -64,11 +62,12 @@ final class GlobalCacheManager {
 
 	/// Retrieves the settings for the cache storage.
 	@property CacheDataStoreSettings dsSettings();
+
+	/// Iterates all key/value pairs. Legacy string[string] version. 
+	deprecated int delegate(int delegate(ref string key, ref string value)) iterateCache();
 	
-	/// Iterates all key/value pairs
-	/// is this type-iteration even possible?
-	/// int delegate(int delegate(ref string key, ref T value)) iterateCache(T, string KEY)();
-	/// 
+	/// Iterates all key/value pairs.
+	int delegate(int delegate(ref string key, ref Variant value)) iterateCache();
 	/// 
 
 	/// The following methods are made available for runtime capabilities
@@ -90,7 +89,9 @@ final class GlobalCacheManager {
 /**
 	Allows full-featured access to the global cache
 */
-final class Cache {
+final class Cache 
+{
+
 	private GlobalCacheManager m_manager;
 
 	private this(GlobalCacheManager man)
@@ -107,18 +108,20 @@ final class Cache {
 	}
 
 	bool isKeySet(string key)() { return m_manager.isKeySet!key; }
-	
+
+
 	/*
-	 * Need to look into loops with varying types
+	 * Iterates through all cache objects with Variant
 	 * 
-	int opApply(int delegate(ref string key, ref string value) del)
+	*/
+	int opApply(int delegate(ref string key, ref Variant value) del)
 	{
-		foreach( key, ref value; m_manager.iterateCache(m_id) )
+		foreach( key, ref value; m_manager.iterateSession(m_id) )
 			if( auto ret = del(key, value) != 0 )
 				return ret;
 		return 0;
 	}
-	*/
+
 	string opIndex(string name) { return m_manager.get(m_id, name); }
 
 	void opIndexAssign(string value, string name) { m_manager.set(m_id, name, value); }
@@ -135,7 +138,8 @@ final class Cache {
 	CacheDataStore is inherited in storage adaptors of vibe.http.cachestore.*
 */
 
-interface CacheDataStore {
+interface CacheDataStore 
+{
 		
 	/// Returns the value for a given Key with associated prefix & suffix
 	T get(T,string KEY, string KeyPrefix = "")(T value, string keySuffix = "");
