@@ -107,9 +107,9 @@ final class Session {
 		}
 		---
 	*/
-	string opIndex(string name) { return m_manager.get(m_id, name); }
+	string opIndex(string name) { return m_manager.get!name(m_id); }
 	/// ditto
-	void opIndexAssign(string value, string name) { m_manager.set(m_id, name, value); }
+	void opIndexAssign(string value, string name) { m_manager.set!name(m_id, value); }
 
 	package void destroy() { m_manager.destroy(m_id); }
 }
