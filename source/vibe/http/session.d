@@ -59,22 +59,15 @@ final class Session {
 		} else {
 			ubyte[64] rand;
 			g_rng.read(rand);
-			m_id = (cast(immutable)Base64URLNoPadding.encode(rand))[0..man.settings.szId-1];
+			m_id = (cast(immutable)Base64URLNoPadding.encode(rand))[0..m_manager.settings.szId-1];
 		}
 	}
 
 	/// Returns the unique session id of this session.
 	@property string id() const { return m_id; }
 
-	static bool exists(string KEY)() { 
-		static if (__traits(compiles, m_keys[KEY])) 
-			return true;
-		else
-			return false;
-	}
-
 	/// Queries the session for the existence of a particular key.
-	bool isKeySet(string key) { return m_store.isKeySet(m_id, key); }
+	bool isKeySet(string key) { return m_store.isKeySet!key(m_id); }
 
 	/**
 		Enables foreach-iteration over all key/value pairs of the session.
