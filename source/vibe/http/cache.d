@@ -122,9 +122,9 @@ final class Cache
 		return 0;
 	}
 
-	string opIndex(string name) { return m_manager.get(m_id, name); }
+	typeof(return) opIndex(string name) { return m_manager.get!name; }
 
-	void opIndexAssign(string value, string name) { m_manager.set(m_id, name, value); }
+	void opIndexAssign(T)(T value, string name) { m_manager.set!name(value); }
 	
 	package void destroy() { m_manager.destroy(m_id); }
 }

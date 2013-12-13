@@ -122,9 +122,13 @@ final class Session {
 		}
 		---
 	*/
-	string opIndex(string name) { return m_manager.get!name(m_id); }
+	typeof(return) opIndex(string name) { return m_manager.get!name(m_id); }
 	/// ditto
-	void opIndexAssign(string value, string name) { m_manager.set!name(m_id, value); }
+	void opIndexAssign(T)(T value, string name) { m_manager.set!name(m_id, value); }
+
+	/// Legacy versions
+	deprecated string opIndex(string name) { return m_manager.get!name(m_id); }
+	deprecated void opIndexAssign(string value, string name) { m_manager.set!name(m_id, value); }
 
 	package void destroy() { m_manager.destroy(m_id); }
 }
