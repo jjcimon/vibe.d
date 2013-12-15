@@ -1,6 +1,7 @@
 module vibe.http.cache;
 
 import std.datetime;
+import std.variant;
 
 class CacheDataStoreSettings 
 {
@@ -9,7 +10,7 @@ class CacheDataStoreSettings
 	uint maxAccesses = 0; // forces to keep each item until cold expiry
 	
 	/// Never cache for longer than
-	Duration maxLifeTime = 1.day; // If cold expiry is never triggered
+	Duration maxLifeTime = 1.days; // If cold expiry is never triggered
 	Duration coldExpiry = 5.minutes; // Triggered based on the last access time
 	Duration hotExpiry = 10.seconds; // Removes the item from the HotCacheStore (local process)
 	Duration cleanupInterval = 5.seconds; // Checks for expiry of each item
@@ -46,43 +47,25 @@ final class GlobalCacheManager
 	CacheDataStore m_dataStore;
 
 	/// Retrieve an accessor object
-	Cache get();
+	Cache lock();
 
 	/// Sets a name/value pair
-	void set(T, string KEY)(T value);
+	void set(T = Variant)(string key, T value);
 	
 	/// Returns the value
-	T get(T, string KEY)(string defaultVal = null);
+	T get(T = Variant)(string key, string defaultVal = null);
 
 	/// Determines if a certain global key is set.
-	bool isKeySet(string KEY)();
+	bool isKeySet(string key);
 	
 	/// Removes the given key.
-	void destroy(string KEY)();
+	void del(string key);
 
 	/// Retrieves the settings for the cache storage.
 	@property CacheDataStoreSettings dsSettings();
 
-	/// Iterates all key/value pairs. Legacy string[string] version. 
-	deprecated int delegate(int delegate(ref string key, ref string value)) iterateCache();
-	
 	/// Iterates all key/value pairs.
 	int delegate(int delegate(ref string key, ref Variant value)) iterateCache();
-	/// 
-
-	/// The following methods are made available for runtime capabilities
-
-	/// Sets a name/value pair. 
-	void set(string name, string value) {}
-	
-	/// Returns the value. 
-	string get(string name, string defaultVal = null) {}
-
-	/// Determines if a certain global key is set.
-	bool isKeySet(string name);
-	
-	/// Removes the given key.
-	void destroy(string name);
 
 }
 
@@ -116,17 +99,17 @@ final class Cache
 	*/
 	int opApply(int delegate(ref string key, ref Variant value) del)
 	{
-		foreach( key, ref value; m_manager.iterateSession(m_id) )
+		foreach( key, ref value; m_manager.iterateCache() )
 			if( auto ret = del(key, value) != 0 )
 				return ret;
 		return 0;
 	}
 
-	typeof(return) opIndex(string name) { return m_manager.get!name; }
+	auto opIndex(string name) { return m_manager.get(name); }
 
-	void opIndexAssign(T)(T value, string name) { m_manager.set!name(value); }
+	void opIndexAssign(T)(T value, string name) { m_manager.set(name, value); }
 	
-	package void destroy() { m_manager.destroy(m_id); }
+	void del(string name) { m_manager.del(name); }
 }
 
 /**
@@ -142,16 +125,16 @@ interface CacheDataStore
 {
 		
 	/// Returns the value for a given Key with associated prefix & suffix
-	T get(T,string KEY, string KeyPrefix = "")(T value, string keySuffix = "");
+	T get(T)(string key, string keyPrefix = "", string keySuffix = "");
 
 	/// Sets value for a given Key with associated prefix & suffix
-	bool set(T, string KEY, string KeyPrefix = "")(T value, string keySuffix = "", string defaultVal = null);
+	bool set(T)(string key, T value, string keyPrefix = "", string keySuffix = "", string defaultVal = null);
 
 	/// Determines if a certain key is set.
-	bool exists(string KEY, string KeyPrefix = "")(string keySuffix = "");
+	bool exists(string key, string keyPrefix = "", string keySuffix = "");
 	
 	/// Removes the entry from storage. Wildcard * can be used in any parameter
-	bool destroy(string KEY = "*", string KeyPrefix = "")(string keySuffix = "");
+	bool remove(string key, string keyPrefix = "", string keySuffix = "");
 
 	/// Runs periodically to remove expired cache
 	void cleanup(); 

@@ -16,6 +16,7 @@ import std.digest.md;
 import std.datetime;
 import vibe.crypto.cryptorand;
 import std.variant;
+import vibe.http.cache;
 
 public import vibe.http.cachestore.memory;
 
@@ -34,7 +35,7 @@ alias Base64Impl!('-', '_', Base64.NoPadding) Base64URLNoPadding;
 /// Session settings object passed to the SessionManager during its creation
 struct SessionManagerSettings {
 
-	ubyte szSessionId = 64;
+	ubyte szSessionID = 64;
 
 	uint maxSessions = 1_000_000;
 
@@ -50,7 +51,6 @@ final class Session {
 		SessionManager m_manager;
 		string m_id;
 	}
-
 	private this(SessionManager man, string id = null)
 	{
 
@@ -60,7 +60,7 @@ final class Session {
 		} else {
 			ubyte[64] rand;
 			g_rng.read(rand);
-			m_id = (cast(immutable)Base64URLNoPadding.encode(rand))[0..m_manager.settings.szId-1];
+			m_id = (cast(immutable)Base64URLNoPadding.encode(rand))[0..m_manager.settings.szSessionID-1];
 		}
 	}
 
@@ -68,21 +68,7 @@ final class Session {
 	@property string id() const { return m_id; }
 
 	/// Queries the session for the existence of a particular key.
-	bool isKeySet(string key) { return m_manager.isKeySet!key(m_id); }
-
-	/**
-		Enables foreach-iteration over all key/value pairs of the session.
-
-		string[string] iteration is provided for legacy, the Variant 
-		version of this is recommended.
-	*/
-	deprecated int opApply(int delegate(ref string key, ref string value) del)
-	{
-		foreach( key, ref value; m_manager.iterateSession(m_id) )
-			if( auto ret = del(key, value) != 0 )
-				return ret;
-		return 0;
-	}
+	bool isKeySet(string key) { return m_manager.isKeySet(key, m_id); }
 
 	/**
 	 	Type-safe iteration is made available through Variant
@@ -122,160 +108,12 @@ final class Session {
 		}
 		---
 	*/
-	typeof(return) opIndex(string name) { return m_manager.get!name(m_id); }
+	auto opIndex(string name) { return m_manager.get(m_id, name); }
 	/// ditto
-	void opIndexAssign(T)(T value, string name) { m_manager.set!name(m_id, value); }
-
-	/// Legacy versions
-	deprecated string opIndex(string name) { return m_manager.get!name(m_id); }
-	deprecated void opIndexAssign(string value, string name) { m_manager.set!name(m_id, value); }
+	void opIndexAssign(T = string)(T value, string name) { m_manager.set(m_id, name, value); }
 
 	package void destroy() { m_manager.destroy(m_id); }
 }
-
-
-/**
-	Interface for a basic session store.
-
-	A sesseion store is responsible for storing the id and the associated key/value pairs of a
-	session.
-*/
-interface SessionStore {
-	/// Creates a new session.
-	Session create();
-
-	/// Checks if a session exists.
-	bool exists(string id);
-
-	/// Opens an existing session.
-	Session open(string id);
-
-	/// Sets a name/value pair for a given session.
-	void set(string id, string name, string value);
-
-	/// Returns the value for a given session key.
-	string get(string id, string name, string defaultVal = null);
-
-	/// Determines if a certain session key is set.
-	bool isKeySet(string id, string key);
-
-	/// Terminates the given sessiom.
-	void destroy(string id);
-
-	@property SessionStoreSettings settings();
-
-	/// Iterates all key/value pairs stored in the given session. 
-	int delegate(int delegate(ref string key, ref string value)) iterateSession(string id);
-
-	/// Creates a new Session object which sources its contents from this store.
-	protected final Session createSessionInstance(string id = null)
-	{
-		return new Session(this, id);
-	}
-}
-
-
-
-/*
-	Session store for storing a session in local memory.
-
-	If the server is running as a single instance (no thread or process clustering), this kind of
-	session store provies the fastest and simplest way to store sessions. In any other case,
-	a persistent session store based on a database is necessary.
-*/
-final class MemorySessionStore : SessionStore {
-	private {
-		MemoryCacheStore m_cache;
-	}
-	
-	this()
-	{
-	}
-	
-	bool exists(string id)
-	{
-		m_cache.get;
-	}
-	
-	Session create()
-	{
-		auto s = createSessionInstance();
-		return s;
-	}
-	
-	Session open(string id)
-	{
-		auto pv = id in m_sessions;
-		return pv ? createSessionInstance(id) : null;	
-	}
-	
-	void set(string id, string name, string value)
-	{
-		m_sessions[id][name] = value;
-		m_lastAccess[id] = Clock.currTime;
-		debug foreach(k, v; m_sessions[id]) logTrace("Csession[%s][%s] = %s", id, k, v);
-	}
-	
-	private void cleanup(){
-		foreach(id, ref val; m_sessions){
-			if (Clock.currTime - m_lastAccess[id] > m_settings.expiresAfter){
-				destroy(id);
-			}
-		}
-		m_lastCleanup = Clock.currTime;
-	}
-	
-	string get(string id, string name, string defaultVal=null)
-	{
-		assert(exists(id), "session not in store");
-		
-		if (Clock.currTime - m_lastCleanup > m_settings.cleanupInterval)
-			cleanup();
-		
-		m_lastAccess[id] = Clock.currTime;
-		
-		debug foreach(k, v; m_sessions[id]) logTrace("Dsession[%s][%s] = %s", id, k, v);
-		if (auto pv = name in m_sessions[id]) {
-			return *pv;			
-		} else {
-			return defaultVal;
-		}
-	}
-	
-	bool isKeySet(string id, string key)
-	{
-		return (key in m_sessions[id]) !is null;
-	}
-	
-	void destroy(string id)
-	{
-		m_sessions.remove(id);
-		m_lastAccess.remove(id);
-		m_exists.remove(id);
-	}
-	
-	int delegate(int delegate(ref string key, ref string value)) iterateSession(string id)
-	{
-		assert(exists(id), "session not in store");
-		int iterator(int delegate(ref string key, ref string value) del)
-		{
-			
-			m_lastAccess[id] = Clock.currTime;
-			
-			foreach( key, ref value; m_sessions[id] )
-				if( auto ret = del(key, value) != 0 )
-					return ret;
-			return 0;
-		}
-		return &iterator;
-	}
-	
-	@property SessionStoreSettings settings(){
-		return m_settings;
-	}
-}
-
-
 
 /**
 	Interface for a session manager
@@ -297,13 +135,13 @@ final class SessionManager {
 	Session open(string id) {}
 	
 	/// Sets a name/value pair for a given session.
-	void set(T, string KEY)(T value, string id) {}
+	void set(T)(T value, string name, string id) {}
 	
 	/// Returns the value for a given session key.
-	T get(T, string KEY)(string id, string defaultVal = null) {}
+	auto get(string id, string name, string defaultVal = null) {}
 
 	/// Determines if a certain session key is set.
-	bool isKeySet(string KEY)(string id) {}
+	bool isKeySet(string key, string id) {}
 	
 	/// Terminates the given sessiom.
 	void destroy(string id) {}
@@ -314,9 +152,6 @@ final class SessionManager {
 	/// Retrieves the settings for the cache storage.
 	@property CacheDataStoreSettings dsSettings() {}
 
-	/// Iterates all key/value pairs stored in the given session. Legacy string[string] version. 
-	deprecated int delegate(int delegate(ref string key, ref string value)) iterateSession(string id);
-
 	/// Iterates all key/value pairs stored in the given session.
 	int delegate(int delegate(ref string key, ref Variant value)) iterateSession(string id);
 	
@@ -326,16 +161,6 @@ final class SessionManager {
 		return new Session(this, id);
 	}
 
-	/// The following methods were included for runtime capabilities
-
-	/// Sets a name/value pair for a given session.
-	void set(string id, string name, string value) {}
-	
-	/// Returns the value for a given session key.
-	string get(string id, string name, string defaultVal = null) {}
-
-	/// Determines if a certain session key is set.
-	bool isKeySet()(string id, string key) {}
-
 }
 
+deprecated alias SessionManager SessionStore;

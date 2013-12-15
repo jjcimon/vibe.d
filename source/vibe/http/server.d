@@ -398,7 +398,7 @@ class HTTPServerSettings {
 	SSLContext sslContext;
 
 	/// Session management is enabled if a session store instance is provided
-	SessionStore sessionStore;
+	SessionManager sessionStore;
 	string sessionIdCookie = "vibe.session_id";
 
 	///

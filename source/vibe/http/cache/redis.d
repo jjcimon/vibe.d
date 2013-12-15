@@ -7,7 +7,7 @@
 */
 module vibe.http.cachestore.redis;
 
-import vibe.http.session;
+import vibe.http.cache;
 import vibe.http.cachestore.cache;
 import vibe.db.redis.redis;
 
@@ -19,15 +19,28 @@ import std.datetime;
 final class RedisCacheStore : CacheDataStore {
 
 	/// Returns the value for a given Key with associated prefix & suffix
-	T get(T,string KEY, string KeyPrefix = "")(T value, string keySuffix = "");
+	T get(T)(string key, string keyPrefix = "", string keySuffix = "");
 	
 	/// Sets value for a given Key with associated prefix & suffix
-	bool set(T, string KEY, string KeyPrefix = "")(T value, string keySuffix = "", string defaultVal = null);
+	bool set(T)(string key, T value, string keyPrefix = "", string keySuffix = "", string defaultVal = null);
 	
 	/// Determines if a certain key is set.
-	bool exists(string KEY, string KeyPrefix = "")(string keySuffix = "");
+	bool exists(string key, string keyPrefix = "", string keySuffix = "");
 	
 	/// Removes the entry from storage. Wildcard * can be used in any parameter
-	bool destroy(string KEY = "*", string KeyPrefix = "")(string keySuffix = "");
+	bool remove(string key, string keyPrefix = "", string keySuffix = "");
+	
+	/// Runs periodically to remove expired cache
+	void cleanup(); 
+	
+	/// Runs when cache suppression is necessary. 
+	/// Should the strategies be selectable at runtime?
+	void criticalCleanup();
+	
+	/// Retrieve or set the settings
+	@property CacheDataStoreSettings settings();
+	
+	/// Iterates all key/value pairs in storage. 
+	/// int delegate(int delegate(ref string key, ref T value)) iterateSession(string KEY, T)(string id);
 
 }
