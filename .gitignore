@@ -1,4 +1,7 @@
 *.o
+*.a
+.dub/
+/vibe-d
 .*.sw*
 /docs/index.html
 /docs/sitemap.xml
