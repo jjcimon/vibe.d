@@ -126,31 +126,31 @@ final class SessionManager {
 	private CacheDataStore m_cds;
 
 	/// Creates a new session.
-	Session create() {}
+	Session create();
 
 	/// Checks if a session exists.
-	bool exists(string id) {}
+	bool exists(string id);
 	
 	/// Opens an existing session.
-	Session open(string id) {}
+	Session open(string id);
 	
 	/// Sets a name/value pair for a given session.
 	void set(T)(T value, string name, string id) {}
 	
 	/// Returns the value for a given session key.
-	auto get(string id, string name, string defaultVal = null) {}
+	string get(string id, string name, string defaultVal = null);
 
 	/// Determines if a certain session key is set.
-	bool isKeySet(string key, string id) {}
+	bool isKeySet(string key, string id);
 	
 	/// Terminates the given sessiom.
-	void destroy(string id) {}
+	void destroy(string id);
 
 	/// Retrieves the active settings
-	@property SessionManagerSettings settings() {}
+	@property SessionManagerSettings settings();
 
 	/// Retrieves the settings for the cache storage.
-	@property CacheDataStoreSettings dsSettings() {}
+	@property CacheDataStoreSettings dsSettings();
 
 	/// Iterates all key/value pairs stored in the given session.
 	int delegate(int delegate(ref string key, ref Variant value)) iterateSession(string id);
